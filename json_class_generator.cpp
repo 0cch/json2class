@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
 
 JsonClassGenerator::JsonClassGenerator() {}
 
@@ -67,11 +68,12 @@ std::string JsonClassGenerator::GenerateClassContent(
 
   for (auto it = j.begin(); it != j.end(); ++it) {
     const std::string& key = it.key();
+    std::string sanitized_key = SanitizeIdentifier(key);
     const json& value = it.value();
 
     if (value.is_object()) {
       // Nested object, create inner class
-      std::string nested_class_name = key + "_type";
+      std::string nested_class_name = sanitized_key + "_type";
       ss << Indent(indent_level) << "class " << nested_class_name << " {\n";
       ss << Indent(indent_level) << " public:\n";
       ss << Indent(indent_level + 1) << nested_class_name << "() = default;\n";
@@ -97,13 +99,14 @@ std::string JsonClassGenerator::GenerateClassContent(
       ss << Indent(indent_level) << "};\n\n";
 
       // Add instance of the inner class
-      ss << Indent(indent_level) << nested_class_name << " " << key << "_;\n";
+      ss << Indent(indent_level) << nested_class_name << " " << sanitized_key
+         << "_;\n";
     } else {
       // Regular member variable
       std::string type = GetTypeForValue(value);
       std::string default_value = GetDefaultValueString(value);
-      ss << Indent(indent_level) << type << " " << key << "_{" << default_value
-         << "};\n";
+      ss << Indent(indent_level) << type << " " << sanitized_key << "_{"
+         << default_value << "};\n";
     }
   }
 
@@ -297,4 +300,48 @@ std::string JsonClassGenerator::GetDefaultValueString(const json& value) {
 
 std::string JsonClassGenerator::Indent(int level) {
   return std::string(level * 2, ' ');
+}
+
+std::string JsonClassGenerator::SanitizeIdentifier(
+    const std::string& identifier) {
+  // C++ Keywords
+  static const std::unordered_set<std::string> cpp_keywords = {
+      "alignas",       "alignof",     "and",
+      "and_eq",        "asm",         "auto",
+      "bitand",        "bitor",       "bool",
+      "break",         "case",        "catch",
+      "char",          "char8_t",     "char16_t",
+      "char32_t",      "class",       "compl",
+      "concept",       "const",       "consteval",
+      "constexpr",     "constinit",   "const_cast",
+      "continue",      "co_await",    "co_return",
+      "co_yield",      "decltype",    "default",
+      "delete",        "do",          "double",
+      "dynamic_cast",  "else",        "enum",
+      "explicit",      "export",      "extern",
+      "false",         "float",       "for",
+      "friend",        "goto",        "if",
+      "inline",        "int",         "long",
+      "mutable",       "namespace",   "new",
+      "noexcept",      "not",         "not_eq",
+      "nullptr",       "operator",    "or",
+      "or_eq",         "private",     "protected",
+      "public",        "register",    "reinterpret_cast",
+      "requires",      "return",      "short",
+      "signed",        "sizeof",      "static",
+      "static_assert", "static_cast", "struct",
+      "switch",        "template",    "this",
+      "thread_local",  "throw",       "true",
+      "try",           "typedef",     "typeid",
+      "typename",      "union",       "unsigned",
+      "using",         "virtual",     "void",
+      "volatile",      "wchar_t",     "while",
+      "xor",           "xor_eq"};
+
+  // Check if the identifier is a C++ keyword
+  if (cpp_keywords.find(identifier) != cpp_keywords.end()) {
+    return identifier + "_rn";
+  }
+
+  return identifier;
 }

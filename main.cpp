@@ -15,6 +15,7 @@ using json = nlohmann::json;
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
+    std::cout << "Version: " << JSON_CLASS_GENERATOR_VERSION << std::endl;
     std::cout << "Usage: " << argv[0] << " <json_file_path>" << std::endl;
     return 1;
   }

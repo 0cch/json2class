@@ -10,6 +10,9 @@
 #include <string>
 #include <vector>
 
+// Define version
+#define JSON_CLASS_GENERATOR_VERSION "0.0.1"
+
 using json = nlohmann::json;
 
 // Generates C++ classes from JSON objects with support for serialization
@@ -54,6 +57,9 @@ class JsonClassGenerator {
 
   // Returns a string with the specified number of spaces for indentation.
   std::string Indent(int level);
+
+  // Checks if a string is a valid C++ identifier.
+  std::string SanitizeIdentifier(const std::string& identifier);
 
   // Set of class names that have already been generated.
   std::set<std::string> generated_classes_;
