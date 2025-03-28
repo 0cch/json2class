@@ -102,4 +102,4 @@ See the `person_example.cpp` file for a complete example of how to use the gener
 ## License
 
 This project is licensed under the BSD License - see the LICENSE file for details.
-```
+
