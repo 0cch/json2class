@@ -1,0 +1,15 @@
+#person
+{
+    "name": "hello",
+    "skill": [
+        "c++",
+        "debug"
+    ],
+    "age": 26,
+    "salary": 1500.5,
+    "active": true,
+    "scores": {
+        "Math": 95,
+        "English": 90
+    }
+}
