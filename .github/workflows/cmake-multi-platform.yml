@@ -4,8 +4,8 @@ name: CMake on multiple platforms
 
 on:
   push:
-    tags:
-      - 'v*'
+    paths:
+      - '**cmake-multi-platform.yml'
 
 permissions:
   contents: write
@@ -175,8 +175,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: v${{ github.run_number }}
-        name: Release v${{ github.run_number }}
+        tag_name: v0.0.2.${{ github.run_number }}
+        name: Release v0.0.2.${{ github.run_number }}
         draft: false
         prerelease: false
         files: |
