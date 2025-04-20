@@ -127,7 +127,8 @@ std::string JsonClassGenerator::GenerateClassContent(
       // Add instance of the inner class
       if (lazy_parsing) {
         ss << Indent(indent_level) << "mutable std::optional<"
-           << nested_class_name << "> " << sanitized_key << "_;\n";
+           << nested_class_name << "> " << sanitized_key << "_{" << "decltype("
+           << sanitized_key << "_)::value_type{}};\n";
       } else {
         ss << Indent(indent_level) << nested_class_name << " " << sanitized_key
            << "_;\n";
@@ -272,11 +273,9 @@ std::string JsonClassGenerator::GenerateGettersSetters(
         ss << Indent(indent_level + 1) << "if (!" << key << "_) {\n";
         ss << Indent(indent_level + 2) << "if (json_.contains(\"" << key
            << "\") && json_[\"" << key << "\"].is_object()) {\n";
-        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
         ss << Indent(indent_level + 3) << key << "_->FromJson(json_[\"" << key
            << "\"]);\n";
         ss << Indent(indent_level + 2) << "} else {\n";
-        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
         ss << Indent(indent_level + 2) << "}\n";
         ss << Indent(indent_level + 1) << "}\n";
         ss << Indent(indent_level + 1) << "return *" << key << "_;\n";
@@ -287,11 +286,9 @@ std::string JsonClassGenerator::GenerateGettersSetters(
         ss << Indent(indent_level + 1) << "if (!" << key << "_) {\n";
         ss << Indent(indent_level + 2) << "if (json_.contains(\"" << key
            << "\") && json_[\"" << key << "\"].is_object()) {\n";
-        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
         ss << Indent(indent_level + 3) << key << "_->FromJson(json_[\"" << key
            << "\"]);\n";
         ss << Indent(indent_level + 2) << "} else {\n";
-        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
         ss << Indent(indent_level + 2) << "}\n";
         ss << Indent(indent_level + 1) << "}\n";
         ss << Indent(indent_level + 1) << "return *" << key << "_;\n";

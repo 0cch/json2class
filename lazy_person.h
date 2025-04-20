@@ -1,11 +1,11 @@
 #ifndef person_H_
 #define person_H_
 
+#include <string>
+#include <vector>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <optional>
-#include <string>
-#include <vector>
 
 using json = nlohmann::json;
 
@@ -14,7 +14,9 @@ class person {
   person() = default;
   ~person() = default;
 
-  person(const json& j) { json_ = j; }
+  person(const json& j) {
+    json_ = j;
+  }
 
   void FromJson(const json& j) {
     active_.reset();
@@ -41,10 +43,8 @@ class person {
   mutable json json_;
   mutable std::optional<bool> active_{decltype(active_)::value_type{true}};
   mutable std::optional<int> age_{decltype(age_)::value_type{26}};
-  mutable std::optional<std::string> name_{
-      decltype(name_)::value_type{"hello"}};
-  mutable std::optional<double> salary_{
-      decltype(salary_)::value_type{1500.500000}};
+  mutable std::optional<std::string> name_{decltype(name_)::value_type{"hello"}};
+  mutable std::optional<double> salary_{decltype(salary_)::value_type{1500.500000}};
   class scores_type {
    public:
     scores_type() = default;
@@ -67,7 +67,6 @@ class person {
     mutable json json_;
     mutable std::optional<int> English_{decltype(English_)::value_type{90}};
     mutable std::optional<int> Math_{decltype(Math_)::value_type{95}};
-
    public:
     const int& English() const {
       if (!English_) {
@@ -91,7 +90,9 @@ class person {
       return *English_;
     }
 
-    void set_English(const int& value) { English_ = value; }
+    void set_English(const int& value) {
+      English_ = value;
+    }
 
     const int& Math() const {
       if (!Math_) {
@@ -115,13 +116,14 @@ class person {
       return *Math_;
     }
 
-    void set_Math(const int& value) { Math_ = value; }
+    void set_Math(const int& value) {
+      Math_ = value;
+    }
+
   };
 
-  mutable std::optional<scores_type> scores_;
-  mutable std::optional<std::vector<std::string>> skill_{
-      decltype(skill_)::value_type{"c++", "debug"}};
-
+  mutable std::optional<scores_type> scores_{decltype(scores_)::value_type{}};
+  mutable std::optional<std::vector<std::string>> skill_{decltype(skill_)::value_type{"c++", "debug"}};
  public:
   const bool& active() const {
     if (!active_) {
@@ -145,7 +147,9 @@ class person {
     return *active_;
   }
 
-  void set_active(const bool& value) { active_ = value; }
+  void set_active(const bool& value) {
+    active_ = value;
+  }
 
   const int& age() const {
     if (!age_) {
@@ -169,7 +173,9 @@ class person {
     return *age_;
   }
 
-  void set_age(const int& value) { age_ = value; }
+  void set_age(const int& value) {
+    age_ = value;
+  }
 
   const std::string& name() const {
     if (!name_) {
@@ -193,7 +199,9 @@ class person {
     return *name_;
   }
 
-  void set_name(const std::string& value) { name_ = value; }
+  void set_name(const std::string& value) {
+    name_ = value;
+  }
 
   const double& salary() const {
     if (!salary_) {
@@ -217,15 +225,15 @@ class person {
     return *salary_;
   }
 
-  void set_salary(const double& value) { salary_ = value; }
+  void set_salary(const double& value) {
+    salary_ = value;
+  }
 
   const scores_type& scores() const {
     if (!scores_) {
       if (json_.contains("scores") && json_["scores"].is_object()) {
-        scores_.emplace();
         scores_->FromJson(json_["scores"]);
       } else {
-        scores_.emplace();
       }
     }
     return *scores_;
@@ -234,16 +242,16 @@ class person {
   scores_type& scores() {
     if (!scores_) {
       if (json_.contains("scores") && json_["scores"].is_object()) {
-        scores_.emplace();
         scores_->FromJson(json_["scores"]);
       } else {
-        scores_.emplace();
       }
     }
     return *scores_;
   }
 
-  void set_scores(const scores_type& value) { scores_ = value; }
+  void set_scores(const scores_type& value) {
+    scores_ = value;
+  }
 
   const std::vector<std::string>& skill() const {
     if (!skill_) {
@@ -275,7 +283,10 @@ class person {
     return *skill_;
   }
 
-  void set_skill(const std::vector<std::string>& value) { skill_ = value; }
+  void set_skill(const std::vector<std::string>& value) {
+    skill_ = value;
+  }
+
 };
 
 #endif  // person_H_
