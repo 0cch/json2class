@@ -13,7 +13,8 @@ JsonClassGenerator::JsonClassGenerator() {}
 JsonClassGenerator::~JsonClassGenerator() {}
 
 std::string JsonClassGenerator::GenerateClass(const std::string& class_name,
-                                              const json& j) {
+                                              const json& j,
+                                              bool lazy_parsing) {
   std::stringstream ss;
 
   // Add header includes
@@ -22,7 +23,11 @@ std::string JsonClassGenerator::GenerateClass(const std::string& class_name,
   ss << "#include <string>\n";
   ss << "#include <vector>\n";
   ss << "#include <map>\n";
-  ss << "#include <nlohmann/json.hpp>\n\n";
+  ss << "#include <nlohmann/json.hpp>\n";
+  if (lazy_parsing) {
+    ss << "#include <optional>\n";
+  }
+  ss << "\n";
   ss << "using json = nlohmann::json;\n\n";
 
   // Generate class definition
@@ -33,25 +38,35 @@ std::string JsonClassGenerator::GenerateClass(const std::string& class_name,
 
   // JSON constructor
   ss << "  " << class_name << "(const json& j) {\n";
-  ss << "    FromJson(j);\n";
+  if (lazy_parsing) {
+    ss << "    json_ = j;\n";
+  } else {
+    ss << "    FromJson(j);\n";
+  }
   ss << "  }\n\n";
 
   // Add FromJson and ToJson method implementations (directly in the class)
   ss << "  void FromJson(const json& j) {\n";
-  ss << GenerateFromJsonMethod(class_name, j, 2);
+  ss << GenerateFromJsonMethod(class_name, j, 2, lazy_parsing);
+  if (lazy_parsing) {
+    ss << "    json_ = j;\n";
+  }
   ss << "  }\n\n";
 
   ss << "  json ToJson() const {\n";
-  ss << GenerateToJsonMethod(class_name, j, 2);
+  ss << GenerateToJsonMethod(class_name, j, 2, lazy_parsing);
   ss << "  }\n\n";
 
   // Add member variables
   ss << " private:\n";
-  ss << GenerateClassContent(class_name, j, 1);
+  if (lazy_parsing) {
+    ss << "  mutable json json_;\n";
+  }
+  ss << GenerateClassContent(class_name, j, 1, lazy_parsing);
 
   // Add getter and setter methods
   ss << " public:\n";
-  ss << GenerateGettersSetters(class_name, j, 1);
+  ss << GenerateGettersSetters(class_name, j, 1, lazy_parsing);
 
   ss << "};\n\n";
   ss << "#endif  // " << class_name << "_H_\n";
@@ -62,7 +77,8 @@ std::string JsonClassGenerator::GenerateClass(const std::string& class_name,
 std::string JsonClassGenerator::GenerateClassContent(
     const std::string& class_name,
     const json& j,
-    int indent_level) {
+    int indent_level,
+    bool lazy_parsing) {
   (void)class_name;
   std::stringstream ss;
 
@@ -82,31 +98,53 @@ std::string JsonClassGenerator::GenerateClassContent(
 
       // Add member variables and method declarations
       ss << Indent(indent_level + 1) << "void FromJson(const json& j) {\n";
-      ss << GenerateFromJsonMethod(nested_class_name, value, indent_level + 2);
+      ss << GenerateFromJsonMethod(nested_class_name, value, indent_level + 2,
+                                   lazy_parsing);
+      if (lazy_parsing) {
+        ss << Indent(indent_level + 2) << "json_ = j;\n";
+      }
       ss << Indent(indent_level + 1) << "}\n\n";
 
       ss << Indent(indent_level + 1) << "json ToJson() const {\n";
-      ss << GenerateToJsonMethod(nested_class_name, value, indent_level + 2);
+      ss << GenerateToJsonMethod(nested_class_name, value, indent_level + 2,
+                                 lazy_parsing);
       ss << Indent(indent_level + 1) << "}\n\n";
 
       ss << Indent(indent_level) << " private:\n";
-      ss << GenerateClassContent(nested_class_name, value, indent_level + 1);
+      if (lazy_parsing) {
+        ss << Indent(indent_level + 1) << "mutable json json_;\n";
+      }
+      ss << GenerateClassContent(nested_class_name, value, indent_level + 1,
+                                 lazy_parsing);
 
       // Add getter and setter methods
       ss << Indent(indent_level) << " public:\n";
-      ss << GenerateGettersSetters(nested_class_name, value, indent_level + 1);
+      ss << GenerateGettersSetters(nested_class_name, value, indent_level + 1,
+                                   lazy_parsing);
 
       ss << Indent(indent_level) << "};\n\n";
 
       // Add instance of the inner class
-      ss << Indent(indent_level) << nested_class_name << " " << sanitized_key
-         << "_;\n";
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "mutable std::optional<"
+           << nested_class_name << "> " << sanitized_key << "_;\n";
+      } else {
+        ss << Indent(indent_level) << nested_class_name << " " << sanitized_key
+           << "_;\n";
+      }
     } else {
       // Regular member variable
       std::string type = GetTypeForValue(value);
       std::string default_value = GetDefaultValueString(value);
-      ss << Indent(indent_level) << type << " " << sanitized_key << "_{"
-         << default_value << "};\n";
+
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "mutable std::optional<" << type << "> "
+           << sanitized_key << "_{" << "decltype(" << sanitized_key
+           << "_)::value_type{" << default_value << "}};\n";
+      } else {
+        ss << Indent(indent_level) << type << " " << sanitized_key << "_{"
+           << default_value << "};\n";
+      }
     }
   }
 
@@ -116,35 +154,45 @@ std::string JsonClassGenerator::GenerateClassContent(
 std::string JsonClassGenerator::GenerateFromJsonMethod(
     const std::string& class_name,
     const json& j,
-    int indent_level) {
+    int indent_level,
+    bool lazy_parsing) {
   (void)class_name;
   std::stringstream ss;
 
-  for (auto it = j.begin(); it != j.end(); ++it) {
-    const std::string& key = it.key();
-    const json& value = it.value();
+  if (!lazy_parsing) {
+    // Directly parse JSON
+    for (auto it = j.begin(); it != j.end(); ++it) {
+      const std::string& key = it.key();
+      const json& value = it.value();
 
-    if (value.is_object()) {
-      // Nested object
-      ss << Indent(indent_level) << "if (j.contains(\"" << key << "\") && j[\""
-         << key << "\"].is_object()) {\n";
-      ss << Indent(indent_level + 1) << key << "_.FromJson(j[\"" << key
-         << "\"]);\n";
-      ss << Indent(indent_level) << "}\n";
-    } else if (value.is_array()) {
-      // Array
-      ss << Indent(indent_level) << "if (j.contains(\"" << key << "\") && j[\""
-         << key << "\"].is_array()) {\n";
-      ss << Indent(indent_level + 1) << key << "_ = j[\"" << key << "\"].get<"
-         << GetTypeForValue(value) << ">();\n";
-      ss << Indent(indent_level) << "}\n";
-    } else {
-      // Basic type
-      std::string type = GetTypeForValue(value);
-      ss << Indent(indent_level) << "if (j.contains(\"" << key << "\")) {\n";
-      ss << Indent(indent_level + 1) << key << "_ = j[\"" << key << "\"].get<"
-         << type << ">();\n";
-      ss << Indent(indent_level) << "}\n";
+      if (value.is_object()) {
+        // Nested object
+        ss << Indent(indent_level) << "if (j.contains(\"" << key
+           << "\") && j[\"" << key << "\"].is_object()) {\n";
+        ss << Indent(indent_level + 1) << key << "_.FromJson(j[\"" << key
+           << "\"]);\n";
+        ss << Indent(indent_level) << "}\n";
+      } else if (value.is_array()) {
+        // Array
+        ss << Indent(indent_level) << "if (j.contains(\"" << key
+           << "\") && j[\"" << key << "\"].is_array()) {\n";
+        ss << Indent(indent_level + 1) << key << "_ = j[\"" << key << "\"].get<"
+           << GetTypeForValue(value) << ">();\n";
+        ss << Indent(indent_level) << "}\n";
+      } else {
+        // Basic type
+        std::string type = GetTypeForValue(value);
+        ss << Indent(indent_level) << "if (j.contains(\"" << key << "\")) {\n";
+        ss << Indent(indent_level + 1) << key << "_ = j[\"" << key << "\"].get<"
+           << type << ">();\n";
+        ss << Indent(indent_level) << "}\n";
+      }
+    }
+  } else {
+    // Lazy parsing version
+    for (auto it = j.begin(); it != j.end(); ++it) {
+      const std::string& key = it.key();
+      ss << Indent(indent_level) << key << "_.reset();\n";
     }
   }
 
@@ -154,7 +202,8 @@ std::string JsonClassGenerator::GenerateFromJsonMethod(
 std::string JsonClassGenerator::GenerateToJsonMethod(
     const std::string& class_name,
     const json& j,
-    int indent_level) {
+    int indent_level,
+    bool lazy_parsing) {
   (void)class_name;
   std::stringstream ss;
 
@@ -166,11 +215,24 @@ std::string JsonClassGenerator::GenerateToJsonMethod(
 
     if (value.is_object()) {
       // Nested object
-      ss << Indent(indent_level) << "j[\"" << key << "\"] = " << key
-         << "_.ToJson();\n";
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "j[\"" << key << "\"] = " << key
+           << "_.value().ToJson();\n";
+      } else {
+        ss << Indent(indent_level) << "j[\"" << key << "\"] = " << key
+           << "_.ToJson();\n";
+      }
+
     } else {
       // Basic type or array
-      ss << Indent(indent_level) << "j[\"" << key << "\"] = " << key << "_;\n";
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "j[\"" << key << "\"] = " << key
+           << "_.value_or(decltype(" << key << "_)::value_type{"
+           << GetDefaultValueString(value) << "});\n";
+      } else {
+        ss << Indent(indent_level) << "j[\"" << key << "\"] = " << key
+           << "_;\n";
+      }
     }
   }
 
@@ -182,7 +244,8 @@ std::string JsonClassGenerator::GenerateToJsonMethod(
 std::string JsonClassGenerator::GenerateGettersSetters(
     const std::string& class_name,
     const json& j,
-    int indent_level) {
+    int indent_level,
+    bool lazy_parsing) {
   (void)class_name;
   std::stringstream ss;
 
@@ -201,38 +264,135 @@ std::string JsonClassGenerator::GenerateGettersSetters(
     if (value.is_object()) {
       // For nested objects, return reference
       std::string nested_class_name = key + "_type";
-      ss << Indent(indent_level) << "const " << nested_class_name << "& " << key
-         << "() const {\n";
-      ss << Indent(indent_level + 1) << "return " << key << "_;\n";
-      ss << Indent(indent_level) << "}\n\n";
 
-      ss << Indent(indent_level) << nested_class_name << "& " << key
-         << "() {\n";
-      ss << Indent(indent_level + 1) << "return " << key << "_;\n";
-      ss << Indent(indent_level) << "}\n\n";
+      if (lazy_parsing) {
+        // Lazy parsing version
+        ss << Indent(indent_level) << "const " << nested_class_name << "& "
+           << key << "() const {\n";
+        ss << Indent(indent_level + 1) << "if (!" << key << "_) {\n";
+        ss << Indent(indent_level + 2) << "if (json_.contains(\"" << key
+           << "\") && json_[\"" << key << "\"].is_object()) {\n";
+        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
+        ss << Indent(indent_level + 3) << key << "_->FromJson(json_[\"" << key
+           << "\"]);\n";
+        ss << Indent(indent_level + 2) << "} else {\n";
+        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
+        ss << Indent(indent_level + 2) << "}\n";
+        ss << Indent(indent_level + 1) << "}\n";
+        ss << Indent(indent_level + 1) << "return *" << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+
+        ss << Indent(indent_level) << nested_class_name << "& " << key
+           << "() {\n";
+        ss << Indent(indent_level + 1) << "if (!" << key << "_) {\n";
+        ss << Indent(indent_level + 2) << "if (json_.contains(\"" << key
+           << "\") && json_[\"" << key << "\"].is_object()) {\n";
+        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
+        ss << Indent(indent_level + 3) << key << "_->FromJson(json_[\"" << key
+           << "\"]);\n";
+        ss << Indent(indent_level + 2) << "} else {\n";
+        ss << Indent(indent_level + 3) << key << "_.emplace();\n";
+        ss << Indent(indent_level + 2) << "}\n";
+        ss << Indent(indent_level + 1) << "}\n";
+        ss << Indent(indent_level + 1) << "return *" << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      } else {
+        ss << Indent(indent_level) << "const " << nested_class_name << "& "
+           << key << "() const {\n";
+        ss << Indent(indent_level + 1) << "return " << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+
+        ss << Indent(indent_level) << nested_class_name << "& " << key
+           << "() {\n";
+        ss << Indent(indent_level + 1) << "return " << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      }
     } else {
-      ss << Indent(indent_level) << "const " << type << "& " << key
-         << "() const {\n";
-      ss << Indent(indent_level + 1) << "return " << key << "_;\n";
-      ss << Indent(indent_level) << "}\n\n";
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "const " << type << "& " << key
+           << "() const {\n";
+        ss << Indent(indent_level + 1) << "if (!" << key << "_) {\n";
+        ss << Indent(indent_level + 2) << "if (json_.contains(\"" << key
+           << "\")) {\n";
+        if (value.is_array()) {
+          ss << Indent(indent_level + 3) << "if (json_[\"" << key
+             << "\"].is_array()) {\n";
+          ss << Indent(indent_level + 4) << key << "_ = json_[\"" << key
+             << "\"].get<" << type << ">();\n";
+          ss << Indent(indent_level + 3) << "} else {\n";
+          ss << Indent(indent_level + 4) << key << "_ = " << type << "{};\n";
+          ss << Indent(indent_level + 3) << "}\n";
+        } else {
+          ss << Indent(indent_level + 3) << key << "_ = json_[\"" << key
+             << "\"].get<" << type << ">();\n";
+        }
+        ss << Indent(indent_level + 2) << "} else {\n";
+        ss << Indent(indent_level + 3) << key << "_ = " << type << "{};\n";
+        ss << Indent(indent_level + 2) << "}\n";
+        ss << Indent(indent_level + 1) << "}\n";
+        ss << Indent(indent_level + 1) << "return *" << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
 
-      ss << Indent(indent_level) << type << "& " << key << "() {\n";
-      ss << Indent(indent_level + 1) << "return " << key << "_;\n";
-      ss << Indent(indent_level) << "}\n\n";
+        ss << Indent(indent_level) << type << "& " << key << "() {\n";
+        ss << Indent(indent_level + 1) << "if (!" << key << "_) {\n";
+        ss << Indent(indent_level + 2) << "if (json_.contains(\"" << key
+           << "\")) {\n";
+        if (value.is_array()) {
+          ss << Indent(indent_level + 3) << "if (json_[\"" << key
+             << "\"].is_array()) {\n";
+          ss << Indent(indent_level + 4) << key << "_ = json_[\"" << key
+             << "\"].get<" << type << ">();\n";
+          ss << Indent(indent_level + 3) << "} else {\n";
+          ss << Indent(indent_level + 4) << key << "_ = " << type << "{};\n";
+          ss << Indent(indent_level + 3) << "}\n";
+        } else {
+          ss << Indent(indent_level + 3) << key << "_ = json_[\"" << key
+             << "\"].get<" << type << ">();\n";
+        }
+        ss << Indent(indent_level + 2) << "} else {\n";
+        ss << Indent(indent_level + 3) << key << "_ = " << type << "{};\n";
+        ss << Indent(indent_level + 2) << "}\n";
+        ss << Indent(indent_level + 1) << "}\n";
+        ss << Indent(indent_level + 1) << "return *" << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      } else {
+        ss << Indent(indent_level) << "const " << type << "& " << key
+           << "() const {\n";
+        ss << Indent(indent_level + 1) << "return " << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+
+        ss << Indent(indent_level) << type << "& " << key << "() {\n";
+        ss << Indent(indent_level + 1) << "return " << key << "_;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      }
     }
 
     // Setter
     if (value.is_object()) {
       std::string nested_class_name = key + "_type";
-      ss << Indent(indent_level) << "void set_" << key << "(const "
-         << nested_class_name << "& value) {\n";
-      ss << Indent(indent_level + 1) << key << "_ = value;\n";
-      ss << Indent(indent_level) << "}\n\n";
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "void set_" << key << "(const "
+           << nested_class_name << "& value) {\n";
+        ss << Indent(indent_level + 1) << key << "_ = value;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      } else {
+        ss << Indent(indent_level) << "void set_" << key << "(const "
+           << nested_class_name << "& value) {\n";
+        ss << Indent(indent_level + 1) << key << "_ = value;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      }
     } else {
-      ss << Indent(indent_level) << "void set_" << key << "(const " << type
-         << "& value) {\n";
-      ss << Indent(indent_level + 1) << key << "_ = value;\n";
-      ss << Indent(indent_level) << "}\n\n";
+      if (lazy_parsing) {
+        ss << Indent(indent_level) << "void set_" << key << "(const " << type
+           << "& value) {\n";
+        ss << Indent(indent_level + 1) << key << "_ = value;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      } else {
+        ss << Indent(indent_level) << "void set_" << key << "(const " << type
+           << "& value) {\n";
+        ss << Indent(indent_level + 1) << key << "_ = value;\n";
+        ss << Indent(indent_level) << "}\n\n";
+      }
     }
   }
 
@@ -278,7 +438,7 @@ std::string JsonClassGenerator::GetDefaultValueString(const json& value) {
     return std::to_string(value.get<double>());
   } else if (value.is_array()) {
     if (value.empty()) {
-      return "";
+      return "[]";
     }
 
     std::stringstream ss;

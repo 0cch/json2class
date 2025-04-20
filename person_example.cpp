@@ -5,7 +5,11 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#ifdef LAZY_PARSING
+#include "lazy_person.h"
+#else
 #include "person.h"
+#endif
 
 int main() {
   // Create a person object using default values

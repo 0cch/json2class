@@ -13,14 +13,31 @@
 
 using json = nlohmann::json;
 
+void printUsage(const char* programName) {
+  std::cout << "Version: " << JSON_CLASS_GENERATOR_VERSION << std::endl;
+  std::cout << "Usage: " << programName << " <json_file_path> [options]"
+            << std::endl;
+  std::cout << "Options:" << std::endl;
+  std::cout << "  --lazy-parsing    启用延迟解析模式" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
-    std::cout << "Version: " << JSON_CLASS_GENERATOR_VERSION << std::endl;
-    std::cout << "Usage: " << argv[0] << " <json_file_path>" << std::endl;
+    printUsage(argv[0]);
     return 1;
   }
 
   std::string file_path = argv[1];
+  bool lazy_parsing = false;
+
+  // Parse command-line arguments
+  for (int i = 2; i < argc; ++i) {
+    std::string arg = argv[i];
+    if (arg == "--lazy-parsing" || arg == "-l") {
+      lazy_parsing = true;
+    }
+  }
+
   std::ifstream file(file_path);
 
   if (!file.is_open()) {
@@ -54,7 +71,12 @@ int main(int argc, char* argv[]) {
   try {
     json j = json::parse(json_content);
     JsonClassGenerator generator;
-    std::string cpp_class = generator.GenerateClass(class_name, j);
+    std::string cpp_class =
+        generator.GenerateClass(class_name, j, lazy_parsing);
+
+    std::cout << "Generation mode: "
+              << (lazy_parsing ? "Lazy parsing" : "Direct parsing")
+              << std::endl;
 
     // Output the generated C++ class
     std::cout << cpp_class << std::endl;

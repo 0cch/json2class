@@ -11,7 +11,7 @@
 #include <vector>
 
 // Define version
-#define JSON_CLASS_GENERATOR_VERSION "0.0.1"
+#define JSON_CLASS_GENERATOR_VERSION "0.0.2"
 
 using json = nlohmann::json;
 
@@ -25,29 +25,37 @@ class JsonClassGenerator {
   // Generates a C++ class definition from a JSON object.
   // |class_name|: The name of the class to generate.
   // |j|: The JSON object to generate the class from.
+  // |lazy_parsing|: If true, the class will use lazy parsing for JSON
+  // objects.
   // Returns: A string containing the C++ class definition.
-  std::string GenerateClass(const std::string& class_name, const json& j);
+  std::string GenerateClass(const std::string& class_name,
+                            const json& j,
+                            bool lazy_parsing = false);
 
  private:
   // Generates the content of a class (member variables and nested classes).
   std::string GenerateClassContent(const std::string& class_name,
                                    const json& j,
-                                   int indent_level = 0);
+                                   int indent_level = 0,
+                                   bool lazy_parsing = false);
 
   // Generates the implementation of the FromJson method.
   std::string GenerateFromJsonMethod(const std::string& class_name,
                                      const json& j,
-                                     int indent_level = 0);
+                                     int indent_level = 0,
+                                     bool lazy_parsing = false);
 
   // Generates the implementation of the ToJson method.
   std::string GenerateToJsonMethod(const std::string& class_name,
                                    const json& j,
-                                   int indent_level = 0);
+                                   int indent_level = 0,
+                                   bool lazy_parsing = false);
 
   // Generates getter and setter methods for class members.
   std::string GenerateGettersSetters(const std::string& class_name,
                                      const json& j,
-                                     int indent_level = 0);
+                                     int indent_level = 0,
+                                     bool lazy_parsing = false);
 
   // Returns the C++ type corresponding to a JSON value.
   std::string GetTypeForValue(const json& value);

@@ -24,3 +24,7 @@ target_link_libraries(json2class PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(test_json2class person_example.cpp)
 target_link_libraries(test_json2class PRIVATE nlohmann_json::nlohmann_json)
+
+add_executable(test_lazy_json2class person_example.cpp)
+target_compile_definitions(test_lazy_json2class PRIVATE LAZY_PARSING)
+target_link_libraries(test_lazy_json2class PRIVATE nlohmann_json::nlohmann_json)
